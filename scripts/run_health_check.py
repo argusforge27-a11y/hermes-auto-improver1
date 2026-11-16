@@ -23,6 +23,12 @@ def discover_skills() -> List[Path]:
     if not SKILLS_DIR.exists():
         print(f"Skills directory not found: {SKILLS_DIR}")
         return skills
+    
+    # Check if SKILLS_DIR itself is a skill
+    if (SKILLS_DIR / "SKILL.md").exists():
+        skills.append(SKILLS_DIR)
+    
+    # Check category subdirectories
     for cat_dir in SKILLS_DIR.iterdir():
         if cat_dir.is_dir():
             for skill_dir in cat_dir.iterdir():
@@ -41,14 +47,12 @@ def parse_frontmatter(content: str) -> dict | None:
     
     fm_text = parts[1]
     fm = {}
-    # Simple key: value parsing
     for line in fm_text.split('\n'):
         line = line.strip()
         if ':' in line and not line.startswith('#'):
             key, val = line.split(':', 1)
             key = key.strip()
             val = val.strip().strip('"\'')
-            # Handle lists like [a, b, c]
             if val.startswith('[') and val.endswith(']'):
                 val = [v.strip().strip('"\'') for v in val[1:-1].split(',')]
             fm[key] = val
@@ -100,7 +104,6 @@ def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
     skill_name = skill_dir.name
     start = time.time()
     
-    # Try to run skill's own eval script if it exists
     eval_script = skill_dir / "scripts" / "run_eval.py"
     if eval_script.exists():
         try:
@@ -118,7 +121,6 @@ def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
             success = False
             output = str(e)
     else:
-        # No eval script - run quick validation checks
         fm_ok, fm_msg = validate_skill_frontmatter(skill_dir)
         ref_ok, ref_msg = validate_skill_references(skill_dir)
         success = fm_ok and ref_ok
