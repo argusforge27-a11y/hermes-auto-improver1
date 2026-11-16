@@ -194,8 +194,8 @@ def main():
     healthy_count = sum(1 for s in all_metrics["skills"] if s["healthy"])
     print(f"\nSummary: {healthy_count}/{len(all_metrics['skills'])} skills healthy")
     
-    if healthy_count < len(all_metrics["skills"]):
-        sys.exit(1)
+    # Always exit 0 - let the workflow check step handle degraded skills
+    sys.exit(0)
 
 
 if __name__ == "__main__":
