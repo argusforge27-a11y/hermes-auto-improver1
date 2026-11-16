@@ -2,28 +2,85 @@
 """
 Health check runner for all Hermes skills.
 Discovers installed skills, runs their evals, computes metrics.
+Works standalone (no Hermes runtime required).
 """
 import json
 import os
 import subprocess
 import sys
 import time
+import yaml
+import re
 from pathlib import Path
 from typing import Dict, List, Any
 
-SKILLS_DIR = Path.home() / ".hermes" / "skills"
-METRICS_FILE = Path.home() / ".hermes" / "cache" / "health_metrics.json"
+# In GitHub Actions, skills are checked out to the repo
+# In local, they're in ~/.hermes/skills
+# Support both via env var or auto-detect
+SKILLS_DIR = Path(os.environ.get("HERMES_SKILLS_DIR", Path.home() / ".hermes" / "skills"))
+METRICS_FILE = Path(os.environ.get("HERMES_METRICS_FILE", Path.home() / ".hermes" / "cache" / "health_metrics.json"))
 
 
 def discover_skills() -> List[Path]:
     """Find all skill directories with SKILL.md"""
     skills = []
+    if not SKILLS_DIR.exists():
+        print(f"Skills directory not found: {SKILLS_DIR}")
+        return skills
     for cat_dir in SKILLS_DIR.iterdir():
         if cat_dir.is_dir():
             for skill_dir in cat_dir.iterdir():
                 if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
                     skills.append(skill_dir)
     return skills
+
+
+def validate_skill_frontmatter(skill_dir: Path) -> tuple[bool, str]:
+    """Validate skill frontmatter without hermes_tools"""
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists():
+        return False, "No SKILL.md"
+    
+    content = skill_md.read_text()
+    if not content.startswith("---"):
+        return False, "Missing frontmatter"
+    
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return False, "Invalid frontmatter format"
+    
+    try:
+        fm = yaml.safe_load(parts[1])
+    except Exception as e:
+        return False, f"YAML parse error: {e}"
+    
+    required = ["name", "description", "version", "author", "license"]
+    for field in required:
+        if field not in fm:
+            return False, f"Missing frontmatter field: {field}"
+    
+    desc = fm.get("description", "")
+    if len(desc) > 60:
+        return False, f"Description too long: {len(desc)} chars (max 60)"
+    
+    return True, "Frontmatter OK"
+
+
+def validate_skill_references(skill_dir: Path) -> tuple[bool, str]:
+    """Check that referenced files exist"""
+    skill_md = skill_dir / "SKILL.md"
+    content = skill_md.read_text()
+    
+    refs = re.findall(r'references/([a-zA-Z0-9_.-]+)', content)
+    missing = []
+    for ref in refs:
+        if not (skill_dir / "references" / ref).exists():
+            missing.append(ref)
+    
+    if missing:
+        return False, f"Missing referenced files: {missing}"
+    
+    return True, "All references exist"
 
 
 def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
@@ -49,17 +106,11 @@ def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
             success = False
             output = str(e)
     else:
-        # No eval script - use quick validation
-        try:
-            result = subprocess.run(
-                [sys.executable, "-m", "hermes_tools.skill_manage", "validate", str(skill_dir)],
-                capture_output=True, text=True, timeout=30
-            )
-            success = result.returncode == 0
-            output = result.stdout
-        except Exception as e:
-            success = False
-            output = str(e)
+        # No eval script - run quick validation checks
+        fm_ok, fm_msg = validate_skill_frontmatter(skill_dir)
+        ref_ok, ref_msg = validate_skill_references(skill_dir)
+        success = fm_ok and ref_ok
+        output = f"Frontmatter: {fm_msg}; References: {ref_msg}"
     
     latency = time.time() - start
     
@@ -74,8 +125,7 @@ def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
 
 def compute_trigger_accuracy(skill_dir: Path) -> float:
     """Estimate trigger accuracy by testing skill description against sample prompts"""
-    # This would use skill-creator's improve_description.py logic
-    # For now, return a placeholder
+    # Placeholder - would use skill-creator's improve_description.py logic
     return 0.85
 
 
@@ -95,6 +145,10 @@ def main():
     print(f"Discovering skills in {SKILLS_DIR}...")
     skills = discover_skills()
     print(f"Found {len(skills)} skills")
+    
+    if not skills:
+        print("No skills found. Exiting.")
+        sys.exit(1)
     
     all_metrics = {
         "timestamp": time.time(),

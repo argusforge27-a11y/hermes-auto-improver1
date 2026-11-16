@@ -1,22 +1,36 @@
 #!/usr/bin/env python3
 """
-Skill improvement script using skill-creator agents.
+Skill improvement script.
 Proposes and validates fixes for degraded skills.
+Works standalone (no Hermes runtime required).
 """
 import argparse
 import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-SKILL_CREATOR_DIR = Path.home() / ".hermes" / "skills" / "productivity" / "skill-creator"
+
+def find_skill_dir(skill_name: str, skills_root: Path) -> Path | None:
+    """Find skill directory by name"""
+    # Direct match
+    candidate = skills_root / "productivity" / skill_name
+    if candidate.exists():
+        return candidate
+    
+    # Search all categories
+    for cat in skills_root.iterdir():
+        if cat.is_dir():
+            candidate = cat / skill_name
+            if candidate.exists():
+                return candidate
+    return None
 
 
 def run_comparator(skill_dir: Path, current_output: str, ideal_output: str) -> dict:
-    """Run blind A/B comparison using skill-creator's comparator agent"""
-    # In practice, this would invoke the comparator agent
-    # For now, return a structured result
+    """Run blind A/B comparison (placeholder)"""
     return {
         "winner": "ideal",
         "confidence": 0.85,
@@ -25,37 +39,34 @@ def run_comparator(skill_dir: Path, current_output: str, ideal_output: str) -> d
 
 
 def run_analyzer(skill_dir: Path, comparison_result: dict) -> dict:
-    """Run post-hoc analysis using skill-creator's analyzer agent"""
+    """Run post-hoc analysis (placeholder)"""
     return {
         "key_differences": [
-            "Ideal output used skill_manage write_file correctly",
+            "Ideal output used proper validation steps",
             "Ideal output verified file existence before claiming success"
         ],
         "recommended_fixes": [
             "Add verification step after each tool call",
-            "Use skill_manage for all skill file operations"
+            "Ensure all referenced files exist"
         ]
     }
 
 
 def generate_improved_skill(skill_dir: Path, analyzer_result: dict) -> str:
-    """Generate improved SKILL.md using skill-creator's improve_description.py"""
-    improve_script = SKILL_CREATOR_DIR / "scripts" / "improve_description.py"
-    if improve_script.exists():
-        # This would run the actual improvement script
-        # For now, read current and return placeholder
-        current = (skill_dir / "SKILL.md").read_text()
-        return current + "\n\n<!-- AUTO-IMPROVED: added verification steps -->\n"
-    return (skill_dir / "SKILL.md").read_text()
+    """Generate improved SKILL.md (placeholder - adds comment)"""
+    current = (skill_dir / "SKILL.md").read_text()
+    fixes = "; ".join(analyzer_result.get("recommended_fixes", []))
+    return current + f"\n\n<!-- AUTO-IMPROVED: {fixes} -->\n"
 
 
 def validate_skill(skill_dir: Path) -> bool:
     """Run quick_validate.py on the skill"""
-    validate_script = SKILL_CREATOR_DIR / "scripts" / "quick_validate.py"
+    validate_script = skill_dir / "scripts" / "quick_validate.py"
     if validate_script.exists():
         result = subprocess.run(
-            [sys.executable, str(validate_script), str(skill_dir)],
-            capture_output=True, text=True
+            [sys.executable, str(validate_script)],
+            capture_output=True, text=True,
+            cwd=skill_dir
         )
         return result.returncode == 0
     return True
@@ -78,22 +89,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--skill", required=True, help="Skill name to improve")
     parser.add_argument("--dry-run", action="store_true", help="Don't write changes")
+    parser.add_argument("--skills-root", help="Root skills directory", 
+                        default=os.environ.get("HERMES_SKILLS_DIR", str(Path.home() / ".hermes" / "skills")))
     args = parser.parse_args()
     
-    skill_dir = Path.home() / ".hermes" / "skills" / "productivity" / args.skill
-    if not skill_dir.exists():
-        # Search all categories
-        for cat in (Path.home() / ".hermes" / "skills").iterdir():
-            candidate = cat / args.skill
-            if candidate.exists():
-                skill_dir = candidate
-                break
+    skills_root = Path(args.skills_root)
+    skill_dir = find_skill_dir(args.skill, skills_root)
     
-    if not skill_dir.exists():
-        print(f"Skill not found: {args.skill}")
+    if not skill_dir:
+        print(f"Skill not found: {args.skill} in {skills_root}")
         sys.exit(1)
     
-    print(f"Improving skill: {skill_dir.name}")
+    print(f"Improving skill: {skill_dir.name} at {skill_dir}")
     
     # Step 1: Analyze current state
     current_skill = (skill_dir / "SKILL.md").read_text()
@@ -110,8 +117,6 @@ def main():
     
     # Step 4: Validate
     if not args.dry_run:
-        # Write to temp location for validation
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             tmp_skill = Path(tmp) / skill_dir.name
             tmp_skill.mkdir()
@@ -128,7 +133,7 @@ def main():
                 eval_result = run_full_evals(tmp_skill)
                 if eval_result["success"]:
                     print("Evals passed - ready to merge")
-                    # In real implementation: commit changes
+                    # In real implementation: commit changes to actual skill_dir
                     return 0
                 else:
                     print(f"Evals failed: {eval_result['output']}")

@@ -20,27 +20,30 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install Hermes CLI
+      - name: Install dependencies
         run: |
-          pip install hermes-agent
+          pip install pyyaml
       
       - name: Run Health Check
         run: |
           cd hermes-auto-improver
           python scripts/run_health_check.py
+        env:
+          HERMES_SKILLS_DIR: ${{ github.workspace }}/hermes-auto-improver/../..
+          HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
       
       - name: Upload Metrics
         uses: actions/upload-artifact@v4
         with:
           name: health-metrics
-          path: ~/.hermes/cache/health_metrics.json
+          path: health_metrics.json
       
       - name: Check for Degraded Skills
         id: check
         run: |
           python -c "
 import json, os
-path = os.path.expanduser('~/.hermes/cache/health_metrics.json')
+path = 'health_metrics.json'
 if os.path.exists(path):
     data = json.load(open(path))
     degraded = [s for s in data['skills'] if not s['healthy']]
@@ -71,7 +74,7 @@ else:
         if: steps.check.outputs.degraded != '0'
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           branch: auto-improve/${{ github.run_id }}
           title: "Auto-improve: degraded skills detected"
           body: |

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Syncs learned patterns and lessons to local Hermes memory.
+Works standalone (no Hermes runtime required).
 """
 import json
 import os
@@ -8,38 +9,18 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-MEMORY_DIR = Path.home() / ".hermes" / "memory"
-MEMORY_FILE = MEMORY_DIR / "memory.json"
-USER_FILE = MEMORY_DIR / "user.json"
-
-# Also sync to skill's references for persistence
-SKILL_DIR = Path.home() / ".hermes" / "skills" / "productivity" / "hermes-auto-improver"
-REFERENCES_DIR = SKILL_DIR / "references"
-LESSONS_FILE = REFERENCES_DIR / "learned_lessons.jsonl"
-
-
-def load_memory() -> dict:
-    if MEMORY_FILE.exists():
-        return json.loads(MEMORY_FILE.read_text())
-    return {"entries": []}
-
-
-def save_memory(data: dict):
-    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-    MEMORY_FILE.write_text(json.dumps(data, indent=2))
-
-
-def append_lesson(lesson: dict):
-    REFERENCES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(LESSONS_FILE, "a") as f:
-        f.write(json.dumps(lesson) + "\n")
-
 
 def main():
-    # Load health check metrics
-    metrics_file = Path.home() / ".hermes" / "cache" / "health_metrics.json"
+    # Config via env vars (works in GitHub Actions and local)
+    metrics_file = Path(os.environ.get("HERMES_METRICS_FILE", 
+                           Path.home() / ".hermes" / "cache" / "health_metrics.json"))
+    memory_file = Path(os.environ.get("HERMES_MEMORY_FILE",
+                           Path.home() / ".hermes" / "memory" / "memory.json"))
+    lessons_file = Path(os.environ.get("HERMES_LESSONS_FILE",
+                           Path.home() / ".hermes" / "skills" / "productivity" / "hermes-auto-improver" / "references" / "learned_lessons.jsonl"))
+    
     if not metrics_file.exists():
-        print("No metrics file found")
+        print(f"No metrics file found at {metrics_file}")
         return
     
     metrics = json.loads(metrics_file.read_text())
@@ -63,24 +44,29 @@ def main():
             }
             lessons.append(lesson)
     
-    # Also record successful improvements
-    # (In real implementation, this would come from git history)
-    
     # Append to skill's learned lessons
-    for lesson in lessons:
-        append_lesson(lesson)
+    lessons_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lessons_file, "a") as f:
+        for lesson in lessons:
+            f.write(json.dumps(lesson) + "\n")
     
-    print(f"Synced {len(lessons)} lessons to {LESSONS_FILE}")
+    print(f"Synced {len(lessons)} lessons to {lessons_file}")
     
     # Also update main memory (optional, for cross-session)
-    memory = load_memory()
+    memory_file.parent.mkdir(parents=True, exist_ok=True)
+    if memory_file.exists():
+        memory = json.loads(memory_file.read_text())
+    else:
+        memory = {"entries": []}
+    
     for lesson in lessons:
         memory["entries"].append({
             "content": f"Skill {lesson['skill']} degraded: trigger_acc={lesson['metrics']['trigger_accuracy']:.2f}, hallucination={lesson['metrics']['hallucination_rate']:.2f}. Improvement attempted.",
             "tags": lesson["tags"]
         })
-    save_memory(memory)
-    print(f"Updated main memory at {MEMORY_FILE}")
+    
+    memory_file.write_text(json.dumps(memory, indent=2))
+    print(f"Updated main memory at {memory_file}")
 
 
 if __name__ == "__main__":
