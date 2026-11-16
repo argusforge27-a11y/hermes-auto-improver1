@@ -20,12 +20,12 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Run Health Check
+      - name: Run Health Check (self-test)
         run: |
           cd hermes-auto-improver
           python scripts/run_health_check.py
         env:
-          HERMES_SKILLS_DIR: ${{ github.workspace }}/hermes-auto-improver/../..
+          HERMES_SKILLS_DIR: ${{ github.workspace }}
           HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
       
       - name: Upload Metrics
