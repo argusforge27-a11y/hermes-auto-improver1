@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Health check runner for all Hermes skills.
-Discovers installed skills, runs their evals, computes metrics.
-Works standalone (no Hermes runtime, no external deps required).
+Works standalone (no Hermes runtime, no external deps).
 """
 import json
 import os
@@ -38,7 +37,7 @@ def discover_skills() -> List[Path]:
 
 
 def parse_frontmatter(content: str) -> dict | None:
-    """Parse YAML frontmatter without PyYAML (simple regex-based)"""
+    """Parse YAML frontmatter without PyYAML"""
     if not content.startswith("---"):
         return None
     parts = content.split("---", 2)
@@ -194,7 +193,7 @@ def main():
     healthy_count = sum(1 for s in all_metrics["skills"] if s["healthy"])
     print(f"\nSummary: {healthy_count}/{len(all_metrics['skills'])} skills healthy")
     
-    # Always exit 0 - let the workflow check step handle degraded skills
+    # Always exit 0 - let workflow check step handle degraded
     sys.exit(0)
 
 

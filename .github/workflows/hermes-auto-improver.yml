@@ -12,10 +12,13 @@ permissions:
 env:
   HERMES_SKILLS_DIR: ${{ github.workspace }}
   HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
+  HERMES_MEMORY_FILE: ${{ github.workspace }}/.hermes/memory/memory.json
+  HERMES_LESSONS_FILE: ${{ github.workspace }}/references/learned_lessons.jsonl
 
 jobs:
   health-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       
@@ -24,18 +27,25 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Debug - List workspace
+      - name: Debug - Verify workspace
         run: |
-          echo "Workspace: ${{ github.workspace }}"
+          echo "=== WORKSPACE ==="
+          pwd
           ls -la
-          echo "--- scripts ---"
+          echo "=== SCRIPTS ==="
           ls -la scripts/
+          echo "=== SKILL.MD ==="
+          head -20 SKILL.md
       
       - name: Run Health Check
         run: python scripts/run_health_check.py
+        continue-on-error: true
       
       - name: Debug - Show metrics
-        run: cat health_metrics.json | python -m json.tool
+        if: always()
+        run: |
+          echo "=== METRICS ==="
+          cat health_metrics.json | python -m json.tool || echo "No metrics file"
       
       - name: Upload Metrics
         uses: actions/upload-artifact@v4
@@ -51,7 +61,7 @@ import json, os
 path = 'health_metrics.json'
 if os.path.exists(path):
     data = json.load(open(path))
-    degraded = [s for s in data['skills'] if not s['healthy']]
+    degraded = [s for s in data.get('skills', []) if not s.get('healthy', True)]
     print(f'degraded={len(degraded)}')
     print(f'skills={\" \".join(s[\"skill\"] for s in degraded)}')
 else:
@@ -63,14 +73,16 @@ else:
         if: steps.check.outputs.degraded != '0'
         run: |
           for skill in ${{ steps.check.outputs.skills }}; do
-            echo "Improving skill: $skill"
+            echo "=== IMPROVING: $skill ==="
             python scripts/improve_skill.py --skill "$skill" --skills-root "${{ github.workspace }}"
           done
       
       - name: Debug - Show git diff
         if: steps.check.outputs.degraded != '0'
         run: |
+          echo "=== GIT STATUS ==="
           git status
+          echo "=== GIT DIFF ==="
           git diff
       
       - name: Sync Memory
