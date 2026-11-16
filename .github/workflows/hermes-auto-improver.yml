@@ -24,8 +24,18 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Debug - List workspace
+        run: |
+          echo "Workspace: ${{ github.workspace }}"
+          ls -la
+          echo "--- scripts ---"
+          ls -la scripts/
+      
       - name: Run Health Check
         run: python scripts/run_health_check.py
+      
+      - name: Debug - Show metrics
+        run: cat health_metrics.json | python -m json.tool
       
       - name: Upload Metrics
         uses: actions/upload-artifact@v4
@@ -53,8 +63,15 @@ else:
         if: steps.check.outputs.degraded != '0'
         run: |
           for skill in ${{ steps.check.outputs.skills }}; do
-            python scripts/improve_skill.py --skill "$skill"
+            echo "Improving skill: $skill"
+            python scripts/improve_skill.py --skill "$skill" --skills-root "${{ github.workspace }}"
           done
+      
+      - name: Debug - Show git diff
+        if: steps.check.outputs.degraded != '0'
+        run: |
+          git status
+          git diff
       
       - name: Sync Memory
         if: env.HERMES_TOKEN != ''
@@ -73,3 +90,4 @@ else:
             Health check found degraded skills: ${{ steps.check.outputs.skills }}
             See workflow run for details.
           labels: auto-improve, needs-review
+          commit-message: "Auto-improve degraded skills"
