@@ -2,12 +2,16 @@ name: Hermes Auto-Improver
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # Daily at 03:00 UTC
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
+
+env:
+  HERMES_SKILLS_DIR: ${{ github.workspace }}
+  HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
 
 jobs:
   health-check:
@@ -20,12 +24,8 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Run Health Check (self-test)
-        run: |
-          python scripts/run_health_check.py
-        env:
-          HERMES_SKILLS_DIR: ${{ github.workspace }}
-          HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
+      - name: Run Health Check
+        run: python scripts/run_health_check.py
       
       - name: Upload Metrics
         uses: actions/upload-artifact@v4
@@ -58,8 +58,7 @@ else:
       
       - name: Sync Memory
         if: env.HERMES_TOKEN != ''
-        run: |
-          python scripts/sync_memory.py
+        run: python scripts/sync_memory.py
         env:
           HERMES_TOKEN: ${{ secrets.HERMES_TOKEN }}
       
@@ -72,6 +71,5 @@ else:
           title: "Auto-improve: degraded skills detected"
           body: |
             Health check found degraded skills: ${{ steps.check.outputs.skills }}
-            
             See workflow run for details.
           labels: auto-improve, needs-review

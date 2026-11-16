@@ -40,16 +40,11 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
-        run: |
-          pip install pyyaml
-      
       - name: Run Health Check
         run: |
-          cd hermes-auto-improver
           python scripts/run_health_check.py
         env:
-          HERMES_SKILLS_DIR: ${{ github.workspace }}/hermes-auto-improver/../..
+          HERMES_SKILLS_DIR: ${{ github.workspace }}
           HERMES_METRICS_FILE: ${{ github.workspace }}/health_metrics.json
       
       - name: Upload Metrics
@@ -78,14 +73,12 @@ else:
         if: steps.check.outputs.degraded != '0'
         run: |
           for skill in ${{ steps.check.outputs.skills }}; do
-            cd hermes-auto-improver
             python scripts/improve_skill.py --skill "$skill"
           done
       
       - name: Sync Memory
         if: env.HERMES_TOKEN != ''
         run: |
-          cd hermes-auto-improver
           python scripts/sync_memory.py
         env:
           HERMES_TOKEN: ${{ secrets.HERMES_TOKEN }}
@@ -103,6 +96,12 @@ else:
             See workflow run for details.
           labels: auto-improve, needs-review
 ```
+
+**Key differences from earlier versions:**
+- No `cd hermes-auto-improver` — workflow runs from repo root where `SKILL.md` lives
+- No `pip install pyyaml` — frontmatter parsed with regex, zero external deps
+- Health check exits 0 always; `Check for Degraded Skills` step reads metrics and controls downstream steps
+- `improve_skill.py` writes changes directly to skill directory for PR creation
 
 ## Critical Notes
 

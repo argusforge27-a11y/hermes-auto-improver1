@@ -101,6 +101,9 @@ For any skill to run in GitHub Actions (or any cloud runner):
 7. **Zero or minimal deps** — prefer stdlib only; if PyYAML is used, add `pip install pyyaml` step.
 8. **Workflow permissions** — `contents: write` and `pull-requests: write` for auto-merge/PR creation.
 9. **Test locally first** — run with `HERMES_SKILLS_DIR=$(pwd) python scripts/run_health_check.py` to simulate CI environment.
+10. **Health check exits 0 always** — let the workflow's check step read metrics and control flow via `GITHUB_OUTPUT`.
+11. **Workflow runs from repo root** — no `cd` into subdirectory; scripts and SKILL.md at workspace root.
+12. **`improve_skill.py` writes to actual skill dir** — validation happens in temp dir, but passing changes are written to the real SKILL.md for PR creation.
 
 ## GitHub Actions Workflow Notes
 
@@ -113,6 +116,9 @@ For any skill to run in GitHub Actions (or any cloud runner):
 - **Skill discovery must check repo root** for `SKILL.md` (skills may sit at repo root, not in category subfolder).
 - Install only `pyyaml` if needed; prefer zero-dependency scripts for fastest cold start.
 - Set subprocess timeouts ≥180s for eval runs (47+ skills can exceed 60s default).
+- **Health check always exits 0** — the `Check for Degraded Skills` step reads metrics JSON and controls downstream steps via `GITHUB_OUTPUT`. This avoids the workflow failing before the check step runs.
+- **Workflow runs from repo root** — no `cd hermes-auto-improver`; scripts and SKILL.md are at workspace root.
+- **`improve_skill.py` writes changes directly** to the skill's SKILL.md after validation, so the PR has a real diff to commit.
 
 ## References
 
