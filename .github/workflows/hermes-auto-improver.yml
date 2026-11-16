@@ -1,0 +1,81 @@
+name: Hermes Auto-Improver
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 03:00 UTC
+  workflow_dispatch:  # Manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Hermes CLI
+        run: |
+          pip install hermes-agent
+      
+      - name: Run Health Check
+        run: |
+          cd hermes-auto-improver
+          python scripts/run_health_check.py
+      
+      - name: Upload Metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-metrics
+          path: ~/.hermes/cache/health_metrics.json
+      
+      - name: Check for Degraded Skills
+        id: check
+        run: |
+          python -c "
+import json, os
+path = os.path.expanduser('~/.hermes/cache/health_metrics.json')
+if os.path.exists(path):
+    data = json.load(open(path))
+    degraded = [s for s in data['skills'] if not s['healthy']]
+    print(f'degraded={len(degraded)}')
+    print(f'skills={\" \".join(s[\"skill\"] for s in degraded)}')
+else:
+    print('degraded=0')
+    print('skills=')
+" >> $GITHUB_OUTPUT
+      
+      - name: Trigger Improvements
+        if: steps.check.outputs.degraded != '0'
+        run: |
+          for skill in ${{ steps.check.outputs.skills }}; do
+            cd hermes-auto-improver
+            python scripts/improve_skill.py --skill "$skill"
+          done
+      
+      - name: Sync Memory
+        if: env.HERMES_TOKEN != ''
+        run: |
+          cd hermes-auto-improver
+          python scripts/sync_memory.py
+        env:
+          HERMES_TOKEN: ${{ secrets.HERMES_TOKEN }}
+      
+      - name: Create PR for Uncertain Changes
+        if: steps.check.outputs.degraded != '0'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          branch: auto-improve/${{ github.run_id }}
+          title: "Auto-improve: degraded skills detected"
+          body: |
+            Health check found degraded skills: ${{ steps.check.outputs.skills }}
+            
+            See workflow run for details.
+          labels: auto-improve, needs-review
