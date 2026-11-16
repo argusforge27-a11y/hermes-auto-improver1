@@ -88,26 +88,31 @@ For each degraded skill:
 3. Add `HERMES_TOKEN` secret (for memory sync back to local)
 4. Workflow runs daily at 03:00 UTC
 
-## Local Testing
+## Cloud Deployment Checklist
 
-```bash
-# Run health check once
-python scripts/run_health_check.py
+For any skill to run in GitHub Actions (or any cloud runner):
 
-# Test improvement on one skill
-python scripts/improve_skill.py --skill skill-name
-
-# Validate skill structure
-python scripts/quick_validate.py
-```
+1. **No `hermes_tools` imports** — replace with subprocess calls to `hermes` CLI if needed, or pure file I/O.
+2. **No `hermes-agent` pip install** — it doesn't exist on PyPI.
+3. **Paths via env vars** — `HERMES_SKILLS_DIR`, `HERMES_METRICS_FILE`, `HERMES_MEMORY_FILE`, `HERMES_LESSONS_FILE`.
+4. **Frontmatter parsing without PyYAML** — use regex/string splitting (see `run_health_check.py::parse_frontmatter`).
+5. **Skill discovery checks repo root** — skills may live at workspace root, not in category folders.
+6. **Subprocess timeouts ≥180s** — especially for eval scripts that iterate many skills.
+7. **Zero or minimal deps** — prefer stdlib only; if PyYAML is used, add `pip install pyyaml` step.
+8. **Workflow permissions** — `contents: write` and `pull-requests: write` for auto-merge/PR creation.
+9. **Test locally first** — run with `HERMES_SKILLS_DIR=$(pwd) python scripts/run_health_check.py` to simulate CI environment.
 
 ## GitHub Actions Workflow Notes
 
 - **Do NOT install `hermes-agent` via pip** — it does not exist on PyPI
-- Scripts are standalone: only `pyyaml` is required (`pip install pyyaml`)
-- Use environment variables for paths (`HERMES_SKILLS_DIR`, `HERMES_METRICS_FILE`, `HERMES_MEMORY_FILE`, `HERMES_LESSONS_FILE`)
-- Workflow uses `actions/checkout@v4` and runs from the checked-out repo
-- Health check discovers skills in the workspace, not ~/.hermes/skills
+- **No `hermes_tools` imports** — this module only exists inside Hermes runtime. Scripts must use stdlib + PyYAML only.
+- **No PyYAML needed** — frontmatter can be parsed with regex (see `run_health_check.py`).
+- Use environment variables for paths (`HERMES_SKILLS_DIR`, `HERMES_METRICS_FILE`, `HERMES_MEMORY_FILE`, `HERMES_LESSONS_FILE`) — never hardcode `~/.hermes` paths.
+- Workflow uses `actions/checkout@v4` and runs from the checked-out repo.
+- **Health check discovers skills in the workspace** (`github.workspace`), not `~/.hermes/skills`.
+- **Skill discovery must check repo root** for `SKILL.md` (skills may sit at repo root, not in category subfolder).
+- Install only `pyyaml` if needed; prefer zero-dependency scripts for fastest cold start.
+- Set subprocess timeouts ≥180s for eval runs (47+ skills can exceed 60s default).
 
 ## References
 
@@ -132,3 +137,6 @@ python scripts/quick_validate.py
 - **False positives**: Trigger accuracy measurement uses synthetic prompts; real-world accuracy may differ. Verify manually periodically.
 - **Health check timeout**: Checking many skills (47+) can exceed default 60s timeout. Set `timeout=180` in run_eval.py subprocess calls or increase GitHub Actions job timeout.
 - **GitHub Actions pip install hermes-agent fails**: The `hermes-agent` package does not exist on PyPI. Workflow must only install `pyyaml`. Scripts must run standalone without Hermes runtime — use environment variables for paths, not hardcoded `~/.hermes` paths.
+- **Script imports from hermes_tools break in CI**: The `hermes_tools` module is only available inside Hermes runtime. Cloud runners (GitHub Actions) have no Hermes installation — all scripts must be pure Python with stdlib deps.
+- **Skill discovery misses root-level skills**: If the skill repo has `SKILL.md` at the root (not in a category subfolder), discovery must check the workspace root explicitly.
+- **PyYAML is optional overhead**: Frontmatter parsing can be done with simple regex/string splitting. Removing PyYAML eliminates a pip install step and speeds up CI.
