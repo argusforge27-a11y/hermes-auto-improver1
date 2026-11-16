@@ -2,21 +2,17 @@
 """
 Health check runner for all Hermes skills.
 Discovers installed skills, runs their evals, computes metrics.
-Works standalone (no Hermes runtime required).
+Works standalone (no Hermes runtime, no external deps required).
 """
 import json
 import os
 import subprocess
 import sys
 import time
-import yaml
 import re
 from pathlib import Path
 from typing import Dict, List, Any
 
-# In GitHub Actions, skills are checked out to the repo
-# In local, they're in ~/.hermes/skills
-# Support both via env var or auto-detect
 SKILLS_DIR = Path(os.environ.get("HERMES_SKILLS_DIR", Path.home() / ".hermes" / "skills"))
 METRICS_FILE = Path(os.environ.get("HERMES_METRICS_FILE", Path.home() / ".hermes" / "cache" / "health_metrics.json"))
 
@@ -35,24 +31,40 @@ def discover_skills() -> List[Path]:
     return skills
 
 
+def parse_frontmatter(content: str) -> dict | None:
+    """Parse YAML frontmatter without PyYAML (simple regex-based)"""
+    if not content.startswith("---"):
+        return None
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return None
+    
+    fm_text = parts[1]
+    fm = {}
+    # Simple key: value parsing
+    for line in fm_text.split('\n'):
+        line = line.strip()
+        if ':' in line and not line.startswith('#'):
+            key, val = line.split(':', 1)
+            key = key.strip()
+            val = val.strip().strip('"\'')
+            # Handle lists like [a, b, c]
+            if val.startswith('[') and val.endswith(']'):
+                val = [v.strip().strip('"\'') for v in val[1:-1].split(',')]
+            fm[key] = val
+    return fm
+
+
 def validate_skill_frontmatter(skill_dir: Path) -> tuple[bool, str]:
-    """Validate skill frontmatter without hermes_tools"""
+    """Validate skill frontmatter"""
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
         return False, "No SKILL.md"
     
     content = skill_md.read_text()
-    if not content.startswith("---"):
-        return False, "Missing frontmatter"
-    
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return False, "Invalid frontmatter format"
-    
-    try:
-        fm = yaml.safe_load(parts[1])
-    except Exception as e:
-        return False, f"YAML parse error: {e}"
+    fm = parse_frontmatter(content)
+    if fm is None:
+        return False, "Missing or invalid frontmatter"
     
     required = ["name", "description", "version", "author", "license"]
     for field in required:
@@ -124,20 +136,17 @@ def run_skill_evals(skill_dir: Path) -> Dict[str, Any]:
 
 
 def compute_trigger_accuracy(skill_dir: Path) -> float:
-    """Estimate trigger accuracy by testing skill description against sample prompts"""
-    # Placeholder - would use skill-creator's improve_description.py logic
+    """Estimate trigger accuracy (placeholder)"""
     return 0.85
 
 
 def compute_hallucination_rate(skill_dir: Path) -> float:
-    """Estimate hallucination rate from eval outputs"""
-    # Placeholder - would analyze actual outputs vs tool evidence
+    """Estimate hallucination rate (placeholder)"""
     return 0.03
 
 
 def compute_tool_success_rate(skill_dir: Path) -> float:
-    """Estimate tool-use success rate"""
-    # Placeholder
+    """Estimate tool-use success rate (placeholder)"""
     return 0.97
 
 
@@ -159,12 +168,10 @@ def main():
         print(f"Checking {skill_dir.name}...")
         metrics = run_skill_evals(skill_dir)
         
-        # Add computed metrics
         metrics["trigger_accuracy"] = compute_trigger_accuracy(skill_dir)
         metrics["hallucination_rate"] = compute_hallucination_rate(skill_dir)
         metrics["tool_success_rate"] = compute_tool_success_rate(skill_dir)
         
-        # Determine health status
         healthy = (
             metrics["eval_success"] and
             metrics["trigger_accuracy"] >= 0.90 and
@@ -178,16 +185,13 @@ def main():
         status = "HEALTHY" if healthy else "DEGRADED"
         print(f"  {skill_dir.name}: {status}")
     
-    # Save metrics
     METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     METRICS_FILE.write_text(json.dumps(all_metrics, indent=2))
     print(f"\nMetrics saved to {METRICS_FILE}")
     
-    # Print summary
     healthy_count = sum(1 for s in all_metrics["skills"] if s["healthy"])
     print(f"\nSummary: {healthy_count}/{len(all_metrics['skills'])} skills healthy")
     
-    # Exit with error if any degraded (for GitHub Actions)
     if healthy_count < len(all_metrics["skills"]):
         sys.exit(1)
 

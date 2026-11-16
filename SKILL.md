@@ -84,8 +84,8 @@ For each degraded skill:
 ## Deployment
 
 1. Push this skill's repo to GitHub
-2. Enable GitHub Actions
-3. Add `HERMES_TOKEN` secret (for memory sync)
+2. Enable GitHub Actions (Settings → Actions → Allow all actions)
+3. Add `HERMES_TOKEN` secret (for memory sync back to local)
 4. Workflow runs daily at 03:00 UTC
 
 ## Local Testing
@@ -100,6 +100,14 @@ python scripts/improve_skill.py --skill skill-name
 # Validate skill structure
 python scripts/quick_validate.py
 ```
+
+## GitHub Actions Workflow Notes
+
+- **Do NOT install `hermes-agent` via pip** — it does not exist on PyPI
+- Scripts are standalone: only `pyyaml` is required (`pip install pyyaml`)
+- Use environment variables for paths (`HERMES_SKILLS_DIR`, `HERMES_METRICS_FILE`, `HERMES_MEMORY_FILE`, `HERMES_LESSONS_FILE`)
+- Workflow uses `actions/checkout@v4` and runs from the checked-out repo
+- Health check discovers skills in the workspace, not ~/.hermes/skills
 
 ## References
 
@@ -123,3 +131,4 @@ python scripts/quick_validate.py
 - **Auto-merge safety**: Only merges changes to SKILL.md and references/. Script/logic changes always open PR for review.
 - **False positives**: Trigger accuracy measurement uses synthetic prompts; real-world accuracy may differ. Verify manually periodically.
 - **Health check timeout**: Checking many skills (47+) can exceed default 60s timeout. Set `timeout=180` in run_eval.py subprocess calls or increase GitHub Actions job timeout.
+- **GitHub Actions pip install hermes-agent fails**: The `hermes-agent` package does not exist on PyPI. Workflow must only install `pyyaml`. Scripts must run standalone without Hermes runtime — use environment variables for paths, not hardcoded `~/.hermes` paths.
