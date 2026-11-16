@@ -3,6 +3,7 @@
 Skill improvement script.
 Proposes and validates fixes for degraded skills.
 Works standalone (no Hermes runtime required).
+Auto-detects skills root from current working directory.
 """
 import argparse
 import json
@@ -32,6 +33,21 @@ def find_skill_dir(skill_name: str, skills_root: Path) -> Path | None:
             if candidate.exists():
                 return candidate
     return None
+
+
+def auto_detect_skills_root() -> Path:
+    """Auto-detect skills root from current working directory"""
+    cwd = Path.cwd()
+    if (cwd / "SKILL.md").exists():
+        return cwd
+    # Check parent
+    if (cwd.parent / "SKILL.md").exists():
+        return cwd.parent
+    # Check ~/.hermes/skills
+    default = Path.home() / ".hermes" / "skills"
+    if default.exists():
+        return default
+    return cwd
 
 
 def run_comparator(skill_dir: Path, current_output: str, ideal_output: str) -> dict:
@@ -94,15 +110,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--skill", required=True, help="Skill name to improve")
     parser.add_argument("--dry-run", action="store_true", help="Don't write changes")
-    parser.add_argument("--skills-root", help="Root skills directory", 
-                        default=os.environ.get("HERMES_SKILLS_DIR", str(Path.home() / ".hermes" / "skills")))
+    parser.add_argument("--skills-root", help="Root skills directory (auto-detected if not provided)")
     args = parser.parse_args()
     
-    skills_root = Path(args.skills_root)
+    if args.skills_root:
+        skills_root = Path(args.skills_root)
+    else:
+        skills_root = auto_detect_skills_root()
+    
+    print(f"Skills root: {skills_root}")
+    
     skill_dir = find_skill_dir(args.skill, skills_root)
     
     if not skill_dir:
         print(f"Skill not found: {args.skill} in {skills_root}")
+        print(f"Contents of {skills_root}:")
+        if skills_root.exists():
+            for item in skills_root.iterdir():
+                print(f"  {item}")
         sys.exit(1)
     
     print(f"Improving skill: {skill_dir.name} at {skill_dir}")
