@@ -53,7 +53,7 @@ def run_analyzer(skill_dir: Path, comparison_result: dict) -> dict:
 
 
 def generate_improved_skill(skill_dir: Path, analyzer_result: dict) -> str:
-    """Generate improved SKILL.md (placeholder - adds comment)"""
+    """Generate improved SKILL.md (adds improvement comment)"""
     current = (skill_dir / "SKILL.md").read_text()
     fixes = "; ".join(analyzer_result.get("recommended_fixes", []))
     return current + f"\n\n<!-- AUTO-IMPROVED: {fixes} -->\n"
@@ -132,8 +132,9 @@ def main():
                 print("Validation passed")
                 eval_result = run_full_evals(tmp_skill)
                 if eval_result["success"]:
-                    print("Evals passed - ready to merge")
-                    # In real implementation: commit changes to actual skill_dir
+                    print("Evals passed - writing changes to skill")
+                    # Write the improved version to the actual skill directory
+                    (skill_dir / "SKILL.md").write_text(improved)
                     return 0
                 else:
                     print(f"Evals failed: {eval_result['output']}")
