@@ -15,7 +15,12 @@ from pathlib import Path
 
 def find_skill_dir(skill_name: str, skills_root: Path) -> Path | None:
     """Find skill directory by name"""
-    # Direct match
+    # Check if skills_root itself is the skill
+    skills_root_resolved = skills_root.resolve()
+    if (skills_root / "SKILL.md").exists() and skills_root_resolved.name == skill_name:
+        return skills_root_resolved
+    
+    # Direct match in productivity/
     candidate = skills_root / "productivity" / skill_name
     if candidate.exists():
         return candidate

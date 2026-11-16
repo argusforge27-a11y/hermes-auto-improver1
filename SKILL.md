@@ -140,3 +140,5 @@ For any skill to run in GitHub Actions (or any cloud runner):
 - **Script imports from hermes_tools break in CI**: The `hermes_tools` module is only available inside Hermes runtime. Cloud runners (GitHub Actions) have no Hermes installation — all scripts must be pure Python with stdlib deps.
 - **Skill discovery misses root-level skills**: If the skill repo has `SKILL.md` at the root (not in a category subfolder), discovery must check the workspace root explicitly.
 - **PyYAML is optional overhead**: Frontmatter parsing can be done with simple regex/string splitting. Removing PyYAML eliminates a pip install step and speeds up CI.
+
+<!-- AUTO-IMPROVED: Add verification step after each tool call; Ensure all referenced files exist -->
