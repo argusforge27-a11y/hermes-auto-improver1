@@ -2,14 +2,23 @@
 
 ## Quick Setup
 
-1. **Create a GitHub repo** for this skill (or add to existing dotfiles repo)
-2. **Copy this skill** to the repo:
+1. **Verify the repo exists on GitHub first** (critical):
+   ```bash
+   curl -sI https://github.com/<user>/<repo>
+   ```
+   If it returns 404, create the repo on GitHub (empty, no initial commit) before pushing. `git push` to a non-existent repo silently succeeds but the remote returns 404.
+2. **Enable Actions BEFORE the first push** — Settings → Actions → Allow all actions. Pushing to a repo without Actions enabled triggers a failed run with 0 jobs and no useful logs.
+3. **Copy this skill** to the repo:
    ```bash
    cp -r ~/.hermes/skills/productivity/hermes-auto-improver /path/to/repo/
    ```
-3. **Push to GitHub**
-4. **Enable Actions** in repo settings (Settings → Actions → Allow all actions and reusable workflows)
-5. **Add secrets**:
+4. **Add `.gitignore`** to exclude `references/learned_lessons.jsonl` (grows unbounded in CI, can exceed 50MB):
+   ```bash
+   echo "references/learned_lessons.jsonl" >> /path/to/repo/.gitignore
+   ```
+5. **Push to GitHub**
+6. **Trigger the first run manually** — go to the Actions tab, click "Run workflow" → "Run workflow". Schedule runs only begin after the first successful manual run.
+7. **Add secrets**:
    - `HERMES_TOKEN` — Personal access token for memory sync (optional, for pushing lessons back)
    - `GH_TOKEN` — Auto-provided by GitHub Actions as `GITHUB_TOKEN`
 
