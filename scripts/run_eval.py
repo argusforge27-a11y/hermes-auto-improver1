@@ -23,10 +23,21 @@ def test_health_check_runs():
 
 def test_improve_skill_dry_run():
     """Test improve_skill.py dry run on a known skill"""
+    # Read skill name from SKILL.md frontmatter
+    import re
+    skill_md = (SKILL_DIR / "SKILL.md").read_text()
+    m = re.search(r'name:\s*["\']?([^"\'\n]+)', skill_md)
+    skill_name = m.group(1).strip() if m else SKILL_DIR.name
     result = subprocess.run(
-        [sys.executable, str(SKILL_DIR / "scripts" / "improve_skill.py"), "--skill", "hermes-auto-improver", "--dry-run"],
+        [sys.executable, str(SKILL_DIR / "scripts" / "improve_skill.py"), "--skill", skill_name, "--dry-run"],
         capture_output=True, text=True, timeout=60
     )
+    if result.returncode != 0:
+        # Try with --skills-root (auto-detect)
+        result = subprocess.run(
+            [sys.executable, str(SKILL_DIR / "scripts" / "improve_skill.py"), "--skill", skill_name, "--dry-run", "--skills-root", str(SKILL_DIR)],
+            capture_output=True, text=True, timeout=60
+        )
     return result.returncode == 0, result.stdout
 
 

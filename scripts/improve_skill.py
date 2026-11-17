@@ -16,10 +16,16 @@ from pathlib import Path
 
 def find_skill_dir(skill_name: str, skills_root: Path) -> Path | None:
     """Find skill directory by name"""
-    # Check if skills_root itself is the skill
     skills_root_resolved = skills_root.resolve()
-    if (skills_root / "SKILL.md").exists() and skills_root_resolved.name == skill_name:
-        return skills_root_resolved
+    
+    # Check if skills_root itself is the skill (name match OR it's the only skill here)
+    if (skills_root / "SKILL.md").exists():
+        if skills_root_resolved.name == skill_name:
+            return skills_root_resolved
+        # Also accept if the skill_name matches the repo dir name
+        # (handles case where repo is cloned as hermes-auto-improver1 but skill is hermes-auto-improver)
+        if skills_root_resolved.name.startswith(skill_name):
+            return skills_root_resolved
     
     # Direct match in productivity/
     candidate = skills_root / "productivity" / skill_name
