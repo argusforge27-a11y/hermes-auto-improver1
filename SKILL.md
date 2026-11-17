@@ -147,10 +147,4 @@ For any skill to run in GitHub Actions (or any cloud runner):
 - **Skill discovery misses root-level skills**: If the skill repo has `SKILL.md` at the root (not in a category subfolder), discovery must check the workspace root explicitly.
 - **PyYAML is optional overhead**: Frontmatter parsing can be done with simple regex/string splitting. Removing PyYAML eliminates a pip install step and speeds up CI.
 
-<!-- AUTO-IMPROVED: Add verification step after each tool call; Ensure all referenced files exist -->
 
-
-<!-- AUTO-IMPROVED: Add verification step after each tool call; Ensure all referenced files exist -->
-
-
-<!-- AUTO-IMPROVED: Add verification step after each tool call; Ensure all referenced files exist -->
